@@ -1,0 +1,27 @@
+# stopos job 1
+#PBS -lnodes=1 -lwalltime=10:00:00
+
+module load stopos
+
+maxserialjobs=1
+ncores=`sara-get-num-cores`
+nmem=`sara-get-mem-size`
+#put min mem in GB!!!
+minmem=4
+
+maxjobs=$((ncores-1<nmem/minmem?ncores-1:nmem/minmem))
+
+
+for ((i=1; i<=maxjobs; i++)) ; do
+(
+	for ((j=1; j<=$maxserialjobs; j++)) ; do
+		stopos next -p list.pool
+		if [ "$STOPOS_RC" != "OK" ]; then
+			break
+		fi
+		eval "/home/genr/software/bitbucket/lisa/tracula/run $STOPOS_VALUE path"
+		stopos remove -p list.pool
+	done
+) &
+done
+wait

@@ -1,0 +1,93 @@
+#!/bin/bash
+
+#pass the idc and trac-all "type"..ie prep bedp or paths
+idc=${1}
+trctype=${2}
+
+####################-----------------######################
+#tell this code where to find the other shells/python code it needs
+shdir=/home/genr/software/bitbucket/lisa/tracula
+#point to the tracula location in the home folder
+tracula_data=${HOME}/data/tracula/5.3
+#point to the freesurfer data in the home folder
+fs_data=${HOME}/data/freesurfer/5.3/wusl
+
+#which versions would you like to use?
+#these are the same as FSLDIR and FREESURFER_HOME
+fsl_version=/home/genr/software/fsl/5.0.5
+fs_version=/home/genr/software/freesurfer/5.3.0
+
+#point to the DTI scratch space (i.e., where you want it to go on the node)
+dti_scratch=/scratch/rmuetzel/tracula/dti
+
+#set to zero to pull fs data from home folder 
+#this is probably OK -- the pulls to fs dir are few, I think?
+use_fs_scratch=0
+
+#point to the FS scratch space (i.e., where you want it on the node)
+if [ $use_fs_scratch == 1 ] ; then
+    fs_scratch=/scratch/rmuetzel/tracula/freesurfer
+else
+    fs_scratch=$fs_data
+fi
+
+####################-----------------######################
+if [ ${idc} == "" ] ; then
+	echo "IDC: ${idc} APPEARS TO BE EMPTY....MUST EXIT!"
+	exit
+fi
+if [ ${trctype} == "" ] ; then
+	echo "TRACULA CMD NOT PROVIDED: ${trctype} APPEARS TO BE EMPTY....MUST EXIT!"
+	exit
+fi
+
+if [ ! -d $dti_scratch ] ; then
+	mkdir -p $dti_scratch
+fi
+if [ ! -d $fs_scratch ] ; then
+	mkdir -p $fs_scratch
+fi
+
+
+if [ "$trctype" == "bedp" ] ; then
+	if [ ! -e ${tracula_data}/${idc}/dmri/data.nii.gz ] ; then
+		cp ${tracula_data}/${idc}/dmri/dwi.nii.gz ${tracula_data}/${idc}/dmri/data.nii.gz
+	fi
+	if [ ! -e ${tracula_data}/${idc}/dmri/nodif_brain_mask.nii.gz ] ; then
+		cp ${tracula_data}/${idc}/dlabel/diff/aparc+aseg_mask.bbr.nii.gz ${tracula_data}/${idc}/dmri/nodif_brain_mask.nii.gz
+	fi
+fi
+
+echo "**************RUNNING RSYNC TO SCRATCH SPACE***************"
+echo "rsync -rtvzL ${tracula_data}/${idc} $dti_scratch/"
+echo "rsync -rtvzL ${fs_data}/${idc} $fs_scratch/"
+echo "**************RUNNING RSYNC TO SCRATCH SPACE***************"
+
+
+rsync -rtvzL ${tracula_data}/${idc} $dti_scratch/
+if [ $use_fs_scratch == 1 ] ; then
+    rsync -rtvzL ${fs_data}/${idc} $fs_scratch/
+fi
+
+#for 5.3, I took this out. The bvec/bvals no longer need to be rotated.
+#further, I simply downsampled the diff data beforehand
+if [ "$trctype" == "prep" ] ; then
+    for b in bval bvec ; do
+        if [ ! -e $dti_scratch/${idc}/dti_idc_${idc}.transpose.${b} ] ; then
+	        python ${shdir}/transpose_b_tbl.py $dti_scratch/${idc}/dti_idc_${idc}.${b} $dti_scratch/${idc}/dti_idc_${idc}.transposed.${b}
+	    fi
+    done
+fi
+
+python ${shdir}/mk_tracula_cfg.py $fs_scratch $dti_scratch ${idc} $dti_scratch/${idc}/${idc}.trc.cfg
+
+export FSLDIR=$fsl_version
+source $FSLDIR/etc/fslconf/fsl.sh
+export SUBJECTS_DIR=$fs_scratch
+
+export FREESURFER_HOME=$fs_version
+source ${FREESURFER_HOME}/SetUpFreeSurfer.sh
+
+${FREESURFER_HOME}/bin/trac-all -c $dti_scratch/${idc}/${idc}.trc.cfg -${trctype}
+
+cp -ruvL $dti_scratch/${idc}/ ${tracula_data}/

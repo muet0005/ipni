@@ -1,0 +1,29 @@
+# stopos job 1
+#PBS -lnodes=1 -lwalltime=24:00:00
+
+module load stopos
+
+maxserialjobs=1
+ncores=`sara-get-num-cores`
+nmem=`sara-get-mem-size`
+#put min mem in GB!!!
+minmem=3
+
+pool=list.bedp.pool
+
+maxjobs=$((ncores-1<nmem/minmem?ncores-1:nmem/minmem))
+
+
+for ((i=1; i<=maxjobs; i++)) ; do
+(
+	for ((j=1; j<=$maxserialjobs; j++)) ; do
+		stopos next -p ${pool}
+		if [ "$STOPOS_RC" != "OK" ]; then
+			break
+		fi
+		eval "/home/genr/software/bitbucket/lisa/dti/run_bedpost.sh $STOPOS_VALUE bedp"
+		stopos remove -p ${pool}
+	done
+) &
+done
+wait

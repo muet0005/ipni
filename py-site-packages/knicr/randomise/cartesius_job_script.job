@@ -1,0 +1,34 @@
+#!/bin/bash
+#SBATCH -t 05:00:00
+#SBATCH -p normal
+#SBATCH -n 1
+
+
+module load stopos
+
+maxserialjobs=1
+ncores=`sara-get-num-cores`
+nmem=`sara-get-mem-size`
+#put min mem in GB!!!
+minmem=3
+
+pool=design_age.pool
+
+maxjobs=$((ncores-1<nmem/minmem?ncores-1:nmem/minmem))
+
+
+
+for ((i=1; i<=maxjobs; i++)) ; do
+(
+	for ((j=1; j<=$maxserialjobs; j++)) ; do
+		stopos next -p $pool
+		if [ "$STOPOS_RC" != "OK" ]; then
+			break
+		fi
+		eval "/home/genr/queues/randomise/run_randomise_stopos.sh $STOPOS_VALUE"
+		stopos remove -p $pool
+	done
+) &
+done
+wait
+
