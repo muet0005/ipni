@@ -49,7 +49,8 @@ class DTIFitInputSpec(FSLCommandInputSpec):
     cni = File(exists=True, desc='input counfound regressors', argstr='-cni %s')
     little_bit = traits.Bool(desc='only process small area of brain',
                              argstr='--littlebit')
-
+    wls = traits.Bool(
+        desc='weighted least squares tensor fit', argstr='--wls')
 
 class DTIFitOutputSpec(TraitedSpec):
 
